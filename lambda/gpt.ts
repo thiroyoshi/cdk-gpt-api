@@ -1,36 +1,18 @@
 import { APIGatewayProxyHandler, APIGatewayProxyResult } from "aws-lambda"
 import { OpenAI } from "openai";
-const openai = new OpenAI({
-    apiKey: "OPENAI_API_KEY",
-});
 
-const BOOKS = [
-  { id: "1", title: "Title-1" },
-  { id: "2", title: "Title-2" },
-  { id: "3", title: "Title-3" },
-]
-
-/** GET /books */
-export const getBooksHandler: APIGatewayProxyHandler = async (event) => {
-  console.log(
-    "pathParameters = " + JSON.stringify(event.pathParameters, undefined, 2)
-  )
-  return createResponse(200, BOOKS)
-}
-
-/** GET /books/{id} */
-export const getBookHandler: APIGatewayProxyHandler = async (event) => {
-  console.log(
-    "pathParameters = " + JSON.stringify(event.pathParameters, undefined, 2)
-  )
-  const id = event.pathParameters?.["id"]
-  return createResponse(200, BOOKS.find((b) => b.id === id))
-}
-
-/** POST /chat */
+// Get Chat Answer from OpenAI
 export const chatHandler: APIGatewayProxyHandler = async (event) => {
 
-  console.log(event.body)
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY || ""
+  if (OPENAI_API_KEY == "") {
+      return createResponse(
+          500,
+          {
+              "status": "error",
+              "message": "env OPENAI_API_KEY is null"
+          })
+  }
 
   const model = event.body? JSON.parse(event.body).model : "gpt-3.5-turbo"
   const prompt = event.body? JSON.parse(event.body).prompt : null
@@ -46,6 +28,9 @@ export const chatHandler: APIGatewayProxyHandler = async (event) => {
   }
 
   try {
+    const openai = new OpenAI({
+      apiKey: OPENAI_API_KEY,
+    });
     const response = await openai.chat.completions.create(
       {
         model: model,
@@ -53,7 +38,6 @@ export const chatHandler: APIGatewayProxyHandler = async (event) => {
         temperature: temperature,
       }
     );
-    console.log(response.choices[0]);
     return createResponse(
       200,
       {
@@ -63,7 +47,7 @@ export const chatHandler: APIGatewayProxyHandler = async (event) => {
   } catch (error) {
     console.error('Error with OpenAI API:', error);
     return createResponse(
-      400,
+      500,
       {
         "status": "error",
         "message": error
@@ -71,8 +55,19 @@ export const chatHandler: APIGatewayProxyHandler = async (event) => {
   }
 }
 
-/** POST /chat-image */
+// Input Image and Get Chat Answer about Information in Image from OpenAI
 export const chatImageHandler: APIGatewayProxyHandler = async (event) => {
+
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY || ""
+  if (OPENAI_API_KEY == "") {
+      return createResponse(
+          500,
+          {
+              "status": "error",
+              "message": "env OPENAI_API_KEY is null"
+          })
+  }
+  
   // const imageKey = event.body? JSON.parse(event.body).imageId : null
   
   // if ( imageKey == null ){
@@ -93,6 +88,9 @@ export const chatImageHandler: APIGatewayProxyHandler = async (event) => {
   // const data = await s3.getObject(params).promise();
 
   try {
+    const openai = new OpenAI({
+      apiKey: OPENAI_API_KEY,
+    });
     const response = await openai.chat.completions.create(
       {
         model: "gpt-3.5-turbo",

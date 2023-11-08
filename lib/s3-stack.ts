@@ -10,8 +10,8 @@ export class S3Stack extends Stack {
         super(scope, id, props)
 
         // S3 バケットの作成
-        const bucket = new s3.Bucket(this, "SenBeroBucket", {
-            bucketName: "senbero-image",
+        const bucket = new s3.Bucket(this, "GPTMapBucket", {
+            bucketName: "gptmap-image",
         })
     }
 }

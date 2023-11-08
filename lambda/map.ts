@@ -1,18 +1,18 @@
 import { APIGatewayProxyHandler, APIGatewayProxyResult } from "aws-lambda"
 import axios from 'axios';
 import { OpenAI } from "openai";
-const openai = new OpenAI({
-    apiKey: "OPENAI_API_KEY",
-});
 
-const PLACES_API_ENDPOINT = 'https://places.googleapis.com/v1/places:searchNearby'
-const DIRRECTIONS_API_ENDPOINT = 'https://maps.googleapis.com/maps/api/directions/json'
-const GOOGLE_API_KEY = 'GOOGLE_API_KEY'
-const MAX_RESULT_COUNT = 20
+const KAMATA = {
+    latitude: 35.562472067268,
+    longitude: 139.71598286456
+}
 
-function getRandome4Int () {
-    const min = 0;
-    const max = MAX_RESULT_COUNT - 1;
+const HANEDA = {
+    latitude: 35.5554,
+    longitude: 139.7544
+}
+
+function getRandom4Int(max: number, min: number): Array<number>  {
     var array = new Array();
     while (array.length < 4) {
         var random = Math.floor(Math.random() * (max - min + 1)) + min;
@@ -23,9 +23,53 @@ function getRandome4Int () {
     return array
 }
 
+// Get Candidate Places from Google Places API
 export const choicesHandler: APIGatewayProxyHandler = async (event) => {
+    const PLACES_API_ENDPOINT = process.env.PLACES_API_ENDPOINT || ""
+    if (PLACES_API_ENDPOINT == "") {
+        return createResponse(
+            500,
+            {
+                "status": "error",
+                "message": "env PLACES_API_ENDPOINT is null"
+            })
+    }
+
+    const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || ""
+    if (GOOGLE_API_KEY == "") {
+        return createResponse(
+            500,
+            {
+                "status": "error",
+                "message": "env GOOGLE_API_KEY is null"
+            })
+    }
+
+    var tmpMAX = process.env.PLACES_RESULT_MAX || 20
+    if (typeof tmpMAX === 'string') {
+        tmpMAX = Number(tmpMAX)
+    }
+    if (tmpMAX > 20) {
+        return createResponse(
+            500,
+            {
+                "status": "error",
+                "message": "env PLACES_RESULT_MAX needs smaller than 20"
+            })
+    }
+    const PLACES_RESULT_MAX = tmpMAX - 1
+    const PLACES_RESULT_MIN = 0
+    if (PLACES_RESULT_MIN + 3 > PLACES_RESULT_MAX) {
+        return createResponse(
+            500,
+            {
+                "status": "error",
+                "message": "env PLACES_RESULT_MAX needs larger than 4"
+            })
+    }
+
     const bordingTime = event.body? JSON.parse(event.body).bordingTime : null
-    if( bordingTime == null ){
+    if (bordingTime == null) {
         return createResponse(
             400,
             {
@@ -34,50 +78,40 @@ export const choicesHandler: APIGatewayProxyHandler = async (event) => {
             })
     }
 
-    // 時と分に分割
+    // Split bordingTime to hour and minute
     const bordingTimeSplit = bordingTime.split(":")
     const bordingTimeHour = bordingTimeSplit[0]
     const bordingTimeMinute = bordingTimeSplit[1]
     const bordingTimeDate = new Date().setHours(bordingTimeHour, bordingTimeMinute, 0, 0)
 
-    // boardingTimeと現在時刻から、行けそうな距離を計算する（できてない）
+    // calcurate diff between now and bordingTime
     const now = new Date()
     const diff = bordingTimeDate - now.getTime()
 
     console.log(bordingTimeDate)
     console.log(now.getTime())
     console.log(diff)
-    
-    // 3時間未満なら、羽田空港を中心に1000m圏内
-    if (diff < 3 * 60 * 60 * 1000) {
-        var lat = 35.562472067268
-        var lng = 139.71598286456
-        var radius = 1000
-    }
-    // 3時間なら、蒲田を中心に1000m圏内
-    else {
-        var lat = 35.562472067268
-        var lng = 139.71598286456
-        var radius = 1000
-    }
 
-    // POSTリクエストのデータ
+    // Create POST data
     const postData = {
         "includedTypes": ["restaurant","spa"],
-        "maxResultCount": MAX_RESULT_COUNT,
+        "maxResultCount": PLACES_RESULT_MAX,
         "languageCode": "en",
         "locationRestriction": {
           "circle": {
             "center": {
-              "latitude": lat,
-              "longitude": lng
-              },
-            "radius": radius
+                // 3時間未満なら羽田空港を中心に、3時間なら蒲田を中心に
+                "latitude": diff < 3 * 60 * 60 * 1000 ? HANEDA.latitude : KAMATA.latitude,
+                "longitude": diff < 3 * 60 * 60 * 1000 ? HANEDA.longitude : KAMATA.longitude
+            },
+            "radius": 1000
           }
         }
       };
-    
-    // Axiosリクエストの設定
+
+    console.log(postData)
+
+    // Create Axios config
     const axiosConfig = {
         headers: {
             'Content-Type': 'application/json',
@@ -87,11 +121,11 @@ export const choicesHandler: APIGatewayProxyHandler = async (event) => {
         timeout: 20000
     };
     
-    // POSTリクエストの実行
     try {
+        // Request to Google Places API
         const response = await axios.post(PLACES_API_ENDPOINT, postData, axiosConfig)
         console.log('Response:', response.data);
-        const array = getRandome4Int()
+        const array = getRandom4Int(PLACES_RESULT_MAX, 0)
         return createResponse(
             200,
             {
@@ -115,7 +149,29 @@ export const choicesHandler: APIGatewayProxyHandler = async (event) => {
 
 }
 
+// Get Direction from Google Directions API
 export const directionHandler: APIGatewayProxyHandler = async (event) => {
+    const DIRRECTIONS_API_ENDPOINT = process.env.DIRRECTIONS_API_ENDPOINT || ""
+    if (DIRRECTIONS_API_ENDPOINT == "") {
+        return createResponse(
+            500,
+            {
+                "status": "error",
+                "message": "env DIRRECTIONS_API_ENDPOINT is null"
+            })
+    }
+
+    const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || ""
+    if (GOOGLE_API_KEY == "") {
+        return createResponse(
+            500,
+            {
+                "status": "error",
+                "message": "env GOOGLE_API_KEY is null"
+            })
+    }
+
+    // Get address from query string
     const address = event.queryStringParameters? event.queryStringParameters.address : null
     if( address == null ){
         return createResponse(
@@ -126,31 +182,108 @@ export const directionHandler: APIGatewayProxyHandler = async (event) => {
             })
     }
 
-    // GETリクエストのデータを追加
+    // Add data to GET request
     const origin = '羽田空港'
     const languageCode = 'en'
     const url = DIRRECTIONS_API_ENDPOINT + '?origin=' + origin + '&destination=' + address + '&travelMode=DRIVING&languageCode=' + languageCode + '&key=' + GOOGLE_API_KEY
 
     console.log(url)
 
-    // Axiosリクエストの設定
+    // Create Axios config
     const axiosConfig = {
         timeout: 20000,
     };
 
-    // GETリクエストの実行
     try {
+        // Request to Google Directions API
+        const response = await axios.get(url, axiosConfig)
+        console.log('Response:', response.data);
+        return createResponse(
+            200,
+            {
+                "status": "success",
+                "message": response.data
+            })
+    } catch(error) {
+        console.error('Error:', error);
+        return createResponse(
+            500,
+            {
+                "status": "error",
+                "message": error
+            })
+    }
+
+}
+
+// Get natural description about direction from Google Directions API and OpenAI API
+export const directionDescriptionHandler: APIGatewayProxyHandler = async (event) => {
+
+    const DIRRECTIONS_API_ENDPOINT = process.env.DIRRECTIONS_API_ENDPOINT || ""
+    if (DIRRECTIONS_API_ENDPOINT == "") {
+        return createResponse(
+            500,
+            {
+                "status": "error",
+                "message": "env DIRRECTIONS_API_ENDPOINT is null"
+            })
+    }
+
+    const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || ""
+    if (GOOGLE_API_KEY == "") {
+        return createResponse(
+            500,
+            {
+                "status": "error",
+                "message": "env GOOGLE_API_KEY is null"
+            })
+    }
+
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY || ""
+    if (OPENAI_API_KEY == "") {
+        return createResponse(
+            500,
+            {
+                "status": "error",
+                "message": "env OPENAI_API_KEY is null"
+            })
+    }
+
+    // Get address from query string
+    const address = event.queryStringParameters? event.queryStringParameters.address : null
+    if( address == null ){
+        return createResponse(
+            400,
+            {
+                "status": "error",
+                "message": "address is null"
+            })
+    }
+
+    // Add data to GET request
+    const origin = '羽田空港'
+    const languageCode = 'en'
+    const url = DIRRECTIONS_API_ENDPOINT + '?origin=' + origin + '&destination=' + address + '&travelMode=DRIVING&languageCode=' + languageCode + '&key=' + GOOGLE_API_KEY
+    console.log(url)
+
+    // Create Axios config
+    const axiosConfig = {
+        timeout: 20000,
+    };
+
+    try {
+        // Request to Google Directions API
         const response = await axios.get(url, axiosConfig)
         console.log('Response:', response.data);
 
-        // 運転の時間を取得
+        // Get distance and duration
         const distance = response.data.routes[0].legs[0].distance.text
         const duration = response.data.routes[0].legs[0].duration.text
 
-        // 滞在時間を設定
+        // Configure play time
         const playTimeMinute = 60
 
-        // プロンプトを作成
+        // Create prompt for GPT
         const prompt = `
         You are a travel advisor.
         You make a natural short description using the following information, and recommend it to the customer.
@@ -159,13 +292,19 @@ export const directionHandler: APIGatewayProxyHandler = async (event) => {
         - distance: ${distance}
         - duration: ${duration}
         - play time: ${playTimeMinute} minutes
-        - budget: $53
-
+        - budget: $53.00
         `
-        const model = event.body? JSON.parse(event.body).model : "gpt-4"
+
+        // Configure GPT model and temperature
+        const model = event.body? JSON.parse(event.body).model : "gpt-3.5-turbo"
         const temperature = event.body? JSON.parse(event.body).temperature : 0.9
       
-        // GPTにリクエスト
+        // Create OpenAI instance
+        const openai = new OpenAI({
+            apiKey: OPENAI_API_KEY,
+        });
+
+        // Request to OpenAI API
         const responseGPT = await openai.chat.completions.create(
             {
               model: model,
@@ -173,9 +312,7 @@ export const directionHandler: APIGatewayProxyHandler = async (event) => {
               temperature: temperature,
             }
           );
-          console.log(responseGPT.choices[0]);
-      
-
+        console.log(responseGPT.choices[0]);
         return createResponse(
             200,
             {
@@ -191,7 +328,6 @@ export const directionHandler: APIGatewayProxyHandler = async (event) => {
                 "message": error
             })
     }
-
 }
 
 
