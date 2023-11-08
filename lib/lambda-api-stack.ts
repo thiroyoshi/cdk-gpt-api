@@ -23,7 +23,21 @@ import * as dotenv from 'dotenv';
       }
 
       // Create API Gateway (REST API)
-      const api = new apigateway.RestApi(this, "GPTMapAPI")
+      const api = new apigateway.RestApi(this, "GPTMapAPI", {
+        deployOptions: {
+          loggingLevel: apigateway.MethodLoggingLevel.INFO,
+          dataTraceEnabled: true,
+          metricsEnabled: true,
+        },
+      })
+      // Create API Key
+      const apiKey = api.addApiKey("CdKGptApiKey", {
+        apiKeyName: `cdk-gpt-api-key`,
+      })
+      // Create Usage Plan
+      const usagePlan = api.addUsagePlan("CdkGptApiUsagePlan");
+      usagePlan.addApiKey(apiKey);
+      usagePlan.addApiStage({ stage: api.deploymentStage });
 
       // Create API Root Path 
       const apiRootGpt = api.root.addResource("gpt")
@@ -38,7 +52,9 @@ import * as dotenv from 'dotenv';
         environment: lambdaEnv,
       })
       const gptChat = apiRootGpt.addResource("chat")
-      gptChat.addMethod("POST", new apigateway.LambdaIntegration(chatHandler))
+      gptChat.addMethod("POST", new apigateway.LambdaIntegration(chatHandler), {
+        apiKeyRequired: true,
+      })
 
       // POST gpt/image/
       const chatImageHandler = new lambda.NodejsFunction(this, "chatImageHandler", {
@@ -49,7 +65,9 @@ import * as dotenv from 'dotenv';
         environment: lambdaEnv,
       })
       const gptImage = api.root.addResource("image")
-      gptImage.addMethod("POST", new apigateway.LambdaIntegration(chatImageHandler))
+      gptImage.addMethod("POST", new apigateway.LambdaIntegration(chatImageHandler), {
+        apiKeyRequired: true,
+      })
 
       // POST map/choices
       const mapChoicesHandler = new lambda.NodejsFunction(this, "mapChoicesHandler", {
@@ -60,7 +78,9 @@ import * as dotenv from 'dotenv';
         environment: lambdaEnv,
       })
       const mapChoices = apiRootMaps.addResource("choices")
-      mapChoices.addMethod("POST", new apigateway.LambdaIntegration(mapChoicesHandler))
+      mapChoices.addMethod("POST", new apigateway.LambdaIntegration(mapChoicesHandler), {
+        apiKeyRequired: true,
+      })
 
       // GET map/directions
       const getMapDirectionsHandler = new lambda.NodejsFunction(this, "mapDirectionsHandler", {
@@ -71,7 +91,9 @@ import * as dotenv from 'dotenv';
         environment: lambdaEnv,
       })
       const mapDirections = apiRootMaps.addResource("directions")
-      mapDirections.addMethod("GET", new apigateway.LambdaIntegration(getMapDirectionsHandler))
+      mapDirections.addMethod("GET", new apigateway.LambdaIntegration(getMapDirectionsHandler), {
+        apiKeyRequired: true,
+      })
 
       // GET map/directions/description
       const getDirectionDescriptionHandler = new lambda.NodejsFunction(this, "mapDirectionDescriptionHandler", {
@@ -82,7 +104,9 @@ import * as dotenv from 'dotenv';
         environment: lambdaEnv,
       })
       const mapDirectionsChat = mapDirections.addResource("description")
-      mapDirectionsChat.addMethod("GET", new apigateway.LambdaIntegration(getDirectionDescriptionHandler))
+      mapDirectionsChat.addMethod("GET", new apigateway.LambdaIntegration(getDirectionDescriptionHandler), {
+        apiKeyRequired: true,
+      })
 
     }
   }
