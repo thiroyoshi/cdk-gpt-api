@@ -56,7 +56,7 @@ export const chatHandler: APIGatewayProxyHandler = async (event) => {
 }
 
 // Input Image and Get Chat Answer about Information in Image from OpenAI
-export const chatImageHandler: APIGatewayProxyHandler = async (event) => {
+export const gptImageHandler: APIGatewayProxyHandler = async (event) => {
 
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY || ""
   if (OPENAI_API_KEY == "") {
@@ -68,41 +68,167 @@ export const chatImageHandler: APIGatewayProxyHandler = async (event) => {
           })
   }
   
-  // const imageKey = event.body? JSON.parse(event.body).imageId : null
-  
-  // if ( imageKey == null ){
-  //   return createResponse(
-  //     400,
-  //     {
-  //       "message": "imageKey is null"
-  //     })
-  // }
-  const imageKey = "ticket.jpg"
+  const prompt = event.body? JSON.parse(event.body).prompt : null 
+  if ( prompt == null ){
+    return createResponse(
+      400,
+      {
+        "message": "prompt is null"
+      })
+  }
 
-  // S3バケットから画像データを取得する
-  // const params = {
-  //   Bucket: "senbero-image",
-  //   Key: imageKey,
-  // };
-  // const s3 = new AWS.S3();
-  // const data = await s3.getObject(params).promise();
+  const imageUrl = event.body? JSON.parse(event.body).imageUrl : null 
+  if ( imageUrl == null ){
+    return createResponse(
+      400,
+      {
+        "message": "imageUrl is null"
+      })
+  }
 
   try {
     const openai = new OpenAI({
       apiKey: OPENAI_API_KEY,
     });
-    const response = await openai.chat.completions.create(
-      {
-        model: "gpt-3.5-turbo",
-        messages: [{ role: "system", content: "You are a helpful assistant." }],
-      }
-    );
-    console.log(response.choices[0]);
+
+    const response = await openai.chat.completions.create({
+        model: "gpt-4-vision-preview",
+        max_tokens: 300,
+        messages: [
+          { 
+            role: "user",
+            content: [
+              { 
+                "type": "text", 
+                "text": prompt
+              },
+              { 
+                "type": "image_url", 
+                "image_url": {
+                  "url": imageUrl
+                }
+              }
+            ] 
+          }
+        ],
+      });
+
+    const content = response.choices[0].message.content
+    if (content == null) {
+      return createResponse(
+        500,
+        {
+          "status": "error",
+          "message": "content is null"
+        })
+    }
+
     return createResponse(
       200,
       {
         "status": "success",
-        "message": response.choices[0]
+        "message": content
+      })
+  } catch (error) {
+    console.error('Error with OpenAI API:', error);
+    return createResponse(
+      500,
+      {
+        "status": "error",
+        "message": error
+      })
+  }
+
+}
+
+// Input Image and Get Chat Answer about Information in BoardingPass Image from OpenAI
+export const gptImageBoardingPassHandler: APIGatewayProxyHandler = async (event) => {
+
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY || ""
+  if (OPENAI_API_KEY == "") {
+      return createResponse(
+          500,
+          {
+              "status": "error",
+              "message": "env OPENAI_API_KEY is null"
+          })
+  }
+  
+  const imageKey = event.body? JSON.parse(event.body).imageKey : null 
+  if ( imageKey == null ){
+    return createResponse(
+      400,
+      {
+        "message": "imageKey is null"
+      })
+  }
+
+  try {
+    const openai = new OpenAI({
+      apiKey: OPENAI_API_KEY,
+    });
+    const prompt = `
+    extract the boarding informations from the image. output them as following json format.
+    return only json format. do not return any other text.
+    ---
+    {
+      "class": "Economy",
+      "from": "Tokyo",
+      "to": "Osaka",
+      "date": "2021-09-01",
+      "boardubgTime": "12:00",
+      "gate": "A1",
+      "flightNumber": "NH1234",
+    }
+    ---
+
+    if the image is not boarding pass, return error message like following.
+    ---
+    {
+      "error": "this image is not boarding pass."
+    }
+    `
+
+    const response = await openai.chat.completions.create({
+        model: "gpt-4-vision-preview",
+        max_tokens: 300,
+        messages: [
+          { 
+            role: "user",
+            content: [
+              { 
+                "type": "text", 
+                "text": prompt
+              },
+              { 
+                "type": "image_url", 
+                "image_url": {
+                  "url": "https://senbero-image.s3-ap-northeast-1.amazonaws.com/" + imageKey
+                }
+              }
+            ] 
+          }
+        ],
+      });
+
+    const content = response.choices[0].message.content
+    if (content == null) {
+      return createResponse(
+        500,
+        {
+          "status": "error",
+          "message": "content is null"
+        })
+    }
+
+    var result = content.split("{")[1].split("}")[0].replace(/\n/g, '')
+    result = "{" + result + "}"
+
+    return createResponse(
+      200,
+      {
+        "status": "success",
+        "message": JSON.parse(result)
       })
   } catch (error) {
     console.error('Error with OpenAI API:', error);

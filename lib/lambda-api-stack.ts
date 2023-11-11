@@ -20,6 +20,7 @@ import * as dotenv from 'dotenv';
         PLACES_API_ENDPOINT: process.env.PLACES_API_ENDPOINT || "",
         DIRRECTIONS_API_ENDPOINT: process.env.DIRRECTIONS_API_ENDPOINT || "",
         PLACES_RESULT_MAX: process.env.PLACES_RESULT_MAX || "20",
+        TZ: process.env.TZ || "Asia/Tokyo",
       }
 
       // Create API Gateway (REST API)
@@ -56,16 +57,29 @@ import * as dotenv from 'dotenv';
         apiKeyRequired: true,
       })
 
-      // POST gpt/image/
-      const chatImageHandler = new lambda.NodejsFunction(this, "chatImageHandler", {
+      // POST gpt/image
+      const gptImageHandler = new lambda.NodejsFunction(this, "gptImageHandler", {
         entry: "lambda/gpt.ts",
-        handler: "chatImageHandler",
-        functionName: "chatImageHandler",
+        handler: "gptImageHandler",
+        functionName: "gptImageHandler",
         timeout: Duration.seconds(180),
         environment: lambdaEnv,
       })
-      const gptImage = api.root.addResource("image")
-      gptImage.addMethod("POST", new apigateway.LambdaIntegration(chatImageHandler), {
+      const gptImage = apiRootGpt.addResource("image")
+      gptImage.addMethod("POST", new apigateway.LambdaIntegration(gptImageHandler), {
+        apiKeyRequired: true,
+      })
+
+      // POST gpt/image/boardingPass
+      const gptImageBoardingPassHandler = new lambda.NodejsFunction(this, "gptImageBoardingPassHandler", {
+        entry: "lambda/gpt.ts",
+        handler: "gptImageBoardingPassHandler",
+        functionName: "gptImageBoardingPassHandler",
+        timeout: Duration.seconds(180),
+        environment: lambdaEnv,
+      })
+      const gptImageBoardingPass = gptImage.addResource("boardingPass")
+      gptImageBoardingPass.addMethod("POST", new apigateway.LambdaIntegration(gptImageBoardingPassHandler), {
         apiKeyRequired: true,
       })
 

@@ -90,7 +90,31 @@ export const choicesHandler: APIGatewayProxyHandler = async (event) => {
 
     console.log(bordingTimeDate)
     console.log(now.getTime())
+    console.log(now)
     console.log(diff)
+
+    if (diff < 0) {
+        return createResponse(
+            400,
+            {
+                "status": "error",
+                "message": "bordingTime is past"
+            })
+    }
+    if (diff < 1.5 * 60 * 60 * 1000) {
+        return createResponse(
+            400,
+            {
+                "status": "error",
+                "message": "Can not recommend because bordingTime is less than 1.5 hours"
+            })
+    }
+
+    // 3時間未満なら羽田空港を中心に、3時間なら蒲田を中心に
+    const center = {
+        "latitude": diff < 3 * 60 * 60 * 1000 ? HANEDA.latitude : KAMATA.latitude,
+        "longitude": diff < 3 * 60 * 60 * 1000 ? HANEDA.longitude : KAMATA.longitude        
+    }
 
     // Create POST data
     const postData = {
@@ -99,11 +123,7 @@ export const choicesHandler: APIGatewayProxyHandler = async (event) => {
         "languageCode": "en",
         "locationRestriction": {
           "circle": {
-            "center": {
-                // 3時間未満なら羽田空港を中心に、3時間なら蒲田を中心に
-                "latitude": diff < 3 * 60 * 60 * 1000 ? HANEDA.latitude : KAMATA.latitude,
-                "longitude": diff < 3 * 60 * 60 * 1000 ? HANEDA.longitude : KAMATA.longitude
-            },
+            "center": center,
             "radius": 1000
           }
         }
@@ -130,12 +150,15 @@ export const choicesHandler: APIGatewayProxyHandler = async (event) => {
             200,
             {
                 "status": "success",
-                "message": [
-                    response.data.places[array[0]],
-                    response.data.places[array[1]],
-                    response.data.places[array[2]],
-                    response.data.places[array[3]]
-                ]
+                "message": {
+                    "center" : center,
+                    "places" : [
+                        response.data.places[array[0]],
+                        response.data.places[array[1]],
+                        response.data.places[array[2]],
+                        response.data.places[array[3]]
+                    ]
+                }
             })
     } catch(error) {
         console.error('Error:', error);
@@ -280,8 +303,9 @@ export const directionDescriptionHandler: APIGatewayProxyHandler = async (event)
         const distance = response.data.routes[0].legs[0].distance.text
         const duration = response.data.routes[0].legs[0].duration.text
 
-        // Configure play time
+        // Configure other information
         const playTimeMinute = 60
+        const budget = 53.00
 
         // Create prompt for GPT
         const prompt = `
@@ -292,7 +316,7 @@ export const directionDescriptionHandler: APIGatewayProxyHandler = async (event)
         - distance: ${distance}
         - duration: ${duration}
         - play time: ${playTimeMinute} minutes
-        - budget: $53.00
+        - budget: ${budget} dollars
         `
 
         // Configure GPT model and temperature
