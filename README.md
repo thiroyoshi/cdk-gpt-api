@@ -29,7 +29,7 @@ You can build the following APIs
 ```
 npm install
 ```
-- Create `.env` file like below and set API Keys you got (you can use .env.sample)
+- Create `.env` file like below and set API Keys you got (you can use `.env.sample`)
 ```
 OPENAI_API_KEY=sk-XXXXXXX
 GOOGLE_API_KEY=XXXXXXX
