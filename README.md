@@ -25,7 +25,11 @@ You can build the following APIs
 - Install AWS CLI and AWS CDK and configure credentials(Access Key and Secret Access Key)
 - Get API Key of OpenAI API and pay some money
 - Get API Key of Google Map Platform
-- Create `.env` file like below and set API Keys you got
+- Install node modules
+```
+npm install
+```
+- Create `.env` file like below and set API Keys you got (you can use .env.sample)
 ```
 OPENAI_API_KEY=sk-XXXXXXX
 GOOGLE_API_KEY=XXXXXXX
